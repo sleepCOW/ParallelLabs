@@ -2,18 +2,32 @@
 #include "windows.h"
 #include "processthreadsapi.h"
 
-int Count = 10;
+int Count = 10; // Ping - Pong message count
 constexpr size_t PING_ID = 0;
 constexpr size_t PONG_ID = 1;
 constexpr size_t THREAD_COUNT = 2;
 
+struct PingPongParam
+{
+	int Counter = 0;
+	CRITICAL_SECTION CSection;
+};
+
 DWORD WINAPI Ping(LPVOID ThreadParam)
 {
-    int& i = *(int*)ThreadParam;
+	PingPongParam* Params = (PingPongParam*)ThreadParam;
+	int& i = Params->Counter;
+    CRITICAL_SECTION& CSection = Params->CSection;
+
     while (i < Count)
     {
-        std::cout << "Ping\n";
-        ++i;
+        if (i % 2 == 0)
+        {
+			std::cout << "Ping\n";
+			EnterCriticalSection(&CSection);
+			++i;
+			LeaveCriticalSection(&CSection);
+        }
     }
 
     return 0;
@@ -21,11 +35,19 @@ DWORD WINAPI Ping(LPVOID ThreadParam)
 
 DWORD WINAPI Pong(LPVOID ThreadParam)
 {
-	int& i = *(int*)ThreadParam;
+    PingPongParam* Params = (PingPongParam*)ThreadParam;
+    int& i = Params->Counter;
+    CRITICAL_SECTION& CSection = Params->CSection;
+
 	while (i < Count)
 	{
-		std::cout << "Pong\n";
-        ++i;
+		if (i % 2 == 1)
+		{
+			std::cout << "Pong\n";
+			EnterCriticalSection(&CSection);
+			++i;
+			LeaveCriticalSection(&CSection);
+		}
 	}
 
     return 0;
@@ -43,14 +65,18 @@ bool CheckWinHandle(HANDLE Handle)
 
 int main()
 {
-    int i = 0;
+    PingPongParam ThreadParam;
+    if (!InitializeCriticalSectionAndSpinCount(&ThreadParam.CSection, 10))
+    {
+        return -1;
+    }
     SYSTEM_INFO SystemInfo;
     GetSystemInfo(&SystemInfo);
 
     HANDLE ThreadArr[THREAD_COUNT];
-    ThreadArr[PING_ID] = CreateThread(nullptr, SystemInfo.dwPageSize, &Ping, &i, 0, nullptr);
-    ThreadArr[PONG_ID] = CreateThread(nullptr, SystemInfo.dwPageSize, &Pong, &i, 0, nullptr);
-    
+    ThreadArr[PING_ID] = CreateThread(nullptr, SystemInfo.dwPageSize, &Ping, &ThreadParam, NULL, nullptr);
+    ThreadArr[PONG_ID] = CreateThread(nullptr, SystemInfo.dwPageSize, &Pong, &ThreadParam, NULL, nullptr);
+
     if (!CheckWinHandle(ThreadArr[PING_ID]) || !CheckWinHandle(ThreadArr[PONG_ID]))
     {
         return -1;
