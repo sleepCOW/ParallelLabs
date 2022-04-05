@@ -21,12 +21,12 @@ DWORD WINAPI Ping(LPVOID ThreadParam)
 
 DWORD WINAPI Pong(LPVOID ThreadParam)
 {
-	int& i = *(int*)ThreadParam;
-	while (i < Count)
-	{
-		std::cout << "Pong\n";
+    int& i = *(int*)ThreadParam;
+    while (i < Count)
+    {
+	std::cout << "Pong\n";
         ++i;
-	}
+    }
 
     return 0;
 }
