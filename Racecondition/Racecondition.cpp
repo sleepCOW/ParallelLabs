@@ -10,23 +10,23 @@ constexpr size_t THREAD_COUNT = 2;
 struct PingPongParam
 {
 	int Counter = 0;
-	CRITICAL_SECTION CSection;
+	HANDLE MutexHandle;
 };
 
 DWORD WINAPI Ping(LPVOID ThreadParam)
 {
 	PingPongParam* Params = (PingPongParam*)ThreadParam;
 	int& i = Params->Counter;
-    CRITICAL_SECTION& CSection = Params->CSection;
+	HANDLE MutexHandle = Params->MutexHandle;
 
     while (i < Count)
     {
         if (i % 2 == 0)
         {
 			std::cout << "Ping\n";
-			EnterCriticalSection(&CSection);
+			WaitForSingleObject(MutexHandle, INFINITE);
 			++i;
-			LeaveCriticalSection(&CSection);
+            ReleaseMutex(MutexHandle);
         }
     }
 
@@ -37,16 +37,16 @@ DWORD WINAPI Pong(LPVOID ThreadParam)
 {
     PingPongParam* Params = (PingPongParam*)ThreadParam;
     int& i = Params->Counter;
-    CRITICAL_SECTION& CSection = Params->CSection;
+    HANDLE MutexHandle = Params->MutexHandle;
 
 	while (i < Count)
 	{
 		if (i % 2 == 1)
 		{
 			std::cout << "Pong\n";
-			EnterCriticalSection(&CSection);
+			WaitForSingleObject(MutexHandle, INFINITE);
 			++i;
-			LeaveCriticalSection(&CSection);
+			ReleaseMutex(MutexHandle);
 		}
 	}
 
@@ -66,7 +66,8 @@ bool CheckWinHandle(HANDLE Handle)
 int main()
 {
     PingPongParam ThreadParam;
-    if (!InitializeCriticalSectionAndSpinCount(&ThreadParam.CSection, 10))
+    ThreadParam.MutexHandle = CreateMutex(nullptr, false, nullptr);
+    if (!CheckWinHandle(ThreadParam.MutexHandle))
     {
         return -1;
     }
@@ -87,6 +88,7 @@ int main()
     {
         CloseHandle(Handle);
     }
+    CloseHandle(ThreadParam.MutexHandle);
 
     return 0;
 }
